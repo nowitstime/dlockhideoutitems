@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deadlock Hideout & Legendary Item Command Generator</title>
+  <meta name="description" content="Generate Deadlock console giveitem commands to bypass the 12-item limit for Hideout, Street Brawl Legendary, Cosmetic, and Unreleased items." />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- Header & Quick Presets -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand-group">
+        <div class="brand-emblem">DL</div>
+        <div>
+          <h1 class="brand-title">Deadlock Hideout Item Command Generator</h1>
+          <p class="brand-subtitle">
+            Bypass the 12-item limit, duplicate &amp; reorder items, and spawn Legendaries • Data from
+            <a href="https://deadlock.wiki/Items" target="_blank" rel="noopener noreferrer">deadlock.wiki/Items</a>
+          </p>
+        </div>
+      </div>
+
+      <div class="header-stats">
+        <span id="header-item-count" class="stat-pill">0 Items</span>
+        <span id="header-bypass-count" class="stat-pill">0/12 Standard Slots</span>
+        <span id="header-active-count" class="stat-pill" title="Deadlock supports up to 4 active item keybinds at a time">0/4 Actives</span>
+        <span id="command-char-badge" class="stat-pill" title="Total console command character length">0 chars</span>
+      </div>
+    </div>
+
+    <div class="presets-strip">
+      <span class="presets-label">⚡ Quick Presets:</span>
+      <div id="presets-bar" class="presets-bar"></div>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <!-- 1. Command Output & Clipboard Panel -->
+    <section class="command-panel" aria-label="Console Command Generator">
+      <div class="command-panel-header">
+        <div class="command-title-group">
+          <h2>Generated Console Command</h2>
+        </div>
+
+        <div class="command-options-bar">
+          <label class="opt-label" title="Prepend sv_cheats 1; for custom games or sandbox testing">
+            <input type="checkbox" id="opt-include-cheats" />
+            <span>Prepend <code>sv_cheats 1</code></span>
+          </label>
+
+          <label class="opt-label">
+            <span>Format:</span>
+            <select id="opt-format-select" class="opt-select">
+              <option value="semicolon">Chained (giveitem a; giveitem b)</option>
+              <option value="bind">Keybind (bind "KEY" "giveitem ...")</option>
+              <option value="newline">Config Lines (.cfg newline)</option>
+            </select>
+          </label>
+
+          <label id="bind-key-input-wrap" class="opt-label" style="display: none;">
+            <span>Key:</span>
+            <input type="text" id="opt-bind-key" class="opt-input opt-input-small" value="F6" maxlength="12" />
+          </label>
+        </div>
+      </div>
+
+      <div class="command-box-row">
+        <textarea
+          id="command-output-box"
+          class="command-textarea"
+          readonly
+          placeholder="Click any item below to generate your giveitem command stack..."
+          aria-label="Generated Deadlock Console Command"
+        ></textarea>
+
+        <div class="command-cta-col">
+          <button type="button" id="copy-main-command-btn" class="btn btn-primary-copy">
+            📋 Copy Command
+          </button>
+          <button type="button" id="download-cfg-btn" class="btn btn-secondary" title="Download as hideout_items.cfg to bypass all console character limits via 'exec hideout_items'">
+            ⬇ Download .cfg File
+          </button>
+        </div>
+      </div>
+
+      <!-- Automatic Batch Copy Buttons when command exceeds single-paste console limit -->
+      <div id="batch-copy-container"></div>
+
+      <!-- Import existing command string or add custom item ID -->
+      <div class="custom-import-row">
+        <form id="custom-item-form" class="custom-item-form">
+          <input
+            type="text"
+            id="custom-item-input"
+            class="custom-item-input"
+            placeholder="Paste an existing 'giveitem ...' string to import, or enter a custom ID (e.g. upgrade_runed_gauntlets)..."
+          />
+          <button type="submit" class="btn btn-secondary">+ Add / Import</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- 2. Option B Dual Inventory Display: Exact Command Order Queue + Shop Breakdown -->
+    <div class="inventory-workspace">
+      <!-- 2A. Exact Command Execution Order (Slots 1 -> N) -->
+      <section class="panel-card" aria-label="Exact Command Execution Order">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>1. Exact Command Execution Order (Drag or Click to Reorder &amp; Duplicate)</h2>
+            <p class="panel-subtitle">
+              Items are given in this exact sequence (<code>#1 → #N</code>). The first 4 <strong>Active</strong> items claim your active keybind slots; items <strong>#13+</strong> overflow past the 12-item HUD limit.
+            </p>
+          </div>
+
+          <div class="panel-actions">
+            <button type="button" id="prioritize-actives-btn" class="btn btn-secondary" title="Move Active items to the start of the command so they get bound to your 4 active slots">
+              ⚡ Put Actives First (Slots 1–4)
+            </button>
+            <button type="button" id="sort-by-shop-btn" class="btn btn-secondary" title="Group command order by Weapon → Vitality → Spirit">
+              🗂 Sort Order by Shop
+            </button>
+            <button type="button" id="clear-queue-btn" class="btn btn-danger">
+              🗑 Clear All
+            </button>
+          </div>
+        </div>
+
+        <div id="queue-empty-state" class="queue-empty-state">
+          <p>Your inventory queue is empty. Click any item icon in the shop below (or choose a Quick Preset above) to start building your stack!</p>
+        </div>
+
+        <div id="execution-queue-list" class="execution-queue-list"></div>
+      </section>
+
+      <!-- 2B. Selected Items Broken Down by Shop -->
+      <section class="panel-card" aria-label="Selected Inventory Broken Down by Shop">
+        <div class="panel-header">
+          <div class="panel-title-wrap">
+            <h2>2. Selected Items Broken Down by Shop</h2>
+            <p class="panel-subtitle">
+              View your chosen stack by shop category with total Soul investments, global <code>#Order</code> badges, within-shop reordering (<code>▲/▼</code>), and one-click duplicating (<code>+</code>).
+            </p>
+          </div>
+        </div>
+
+        <div id="shop-breakdown-grid" class="shop-breakdown-grid"></div>
+      </section>
+    </div>
+
+    <!-- 3. Item Catalog Filter Bar -->
+    <section class="catalog-filter-panel" aria-label="Item Catalog Filters">
+      <div class="filter-top-row">
+        <div class="section-tabs" role="tablist" aria-label="Item Sections">
+          <button type="button" class="filter-tab active" data-filter-section="all">
+            All Items (254)
+          </button>
+          <button type="button" class="filter-tab" data-filter-section="curiosity">
+            Curiosity Shop + Legendaries (173)
+          </button>
+          <button type="button" class="filter-tab" data-filter-section="legendary">
+            ★ Legendaries Only (17)
+          </button>
+          <button type="button" class="filter-tab" data-filter-section="cosmetic">
+            ❄️ Cosmetic Items (2)
+          </button>
+          <button type="button" class="filter-tab" data-filter-section="unreleased">
+            🧪 Unreleased &amp; Cut Items (79)
+          </button>
+        </div>
+
+        <div class="search-box-wrap">
+          <input
+            type="search"
+            id="catalog-search-input"
+            class="catalog-search-input"
+            placeholder="Search by item name or upgrade_ code..."
+            aria-label="Search items"
+          />
+        </div>
+      </div>
+
+      <div class="filter-bottom-row">
+        <div class="shop-pills" aria-label="Filter by Shop">
+          <button type="button" class="pill-btn active" data-filter-shop="all">All Shops</button>
+          <button type="button" class="pill-btn shop-pill-weapon" data-filter-shop="weapon">🟠 Weapon</button>
+          <button type="button" class="pill-btn shop-pill-vitality" data-filter-shop="vitality">🟢 Vitality</button>
+          <button type="button" class="pill-btn shop-pill-spirit" data-filter-shop="spirit">🟣 Spirit</button>
+          <button type="button" class="pill-btn" data-filter-shop="cosmetic">🔵 Cosmetic</button>
+        </div>
+
+        <div class="tier-pills" aria-label="Filter by Tier">
+          <button type="button" class="pill-btn active" data-filter-tier="all">All Tiers</button>
+          <button type="button" class="pill-btn" data-filter-tier="5">★ Legendary</button>
+          <button type="button" class="pill-btn" data-filter-tier="4">Tier 4 (6,400)</button>
+          <button type="button" class="pill-btn" data-filter-tier="3">Tier 3 (3,200)</button>
+          <button type="button" class="pill-btn" data-filter-tier="2">Tier 2 (1,600)</button>
+          <button type="button" class="pill-btn" data-filter-tier="1">Tier 1 (800)</button>
+
+          <label class="opt-label" style="margin-left: 0.5rem;">
+            <input type="checkbox" id="filter-active-only" />
+            <span>Active Items Only</span>
+          </label>
+        </div>
+
+        <span id="catalog-result-count" class="catalog-result-count">Showing 254 items</span>
+      </div>
+    </section>
+
+    <!-- 4. Item Catalog Sections (Shop, Legendaries, Cosmetics, Unreleased) -->
+    <div id="catalog-sections-container" class="catalog-sections-container"></div>
+  </main>
+
+  <div id="toast-notification" class="toast-notification" role="status" aria-live="polite"></div>
+
+  <footer class="site-footer">
+    <p>
+      Deadlock Hideout &amp; Legendary Item Command Generator • Item data &amp; icons referenced from
+      <a href="https://deadlock.wiki/Items" target="_blank" rel="noopener noreferrer">The Deadlock Wiki</a>.
+      Hosted on GitHub Pages.
+    </p>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
