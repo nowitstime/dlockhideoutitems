@@ -183,307 +183,149 @@ function renderCommandOutput() {
 }
 
 /**
- * Renders Option B Part 1: Exact Global Command Execution Queue (1 -> N)
- * with Drag & Drop, Duplicate button, Left/Right reorder, and 12-Slot Bypass indicator
+ * Renders the Selected Inventory Queue as compact consolidated item tiles
+ * matching the shop look, with #Order, xN badge, drag-and-drop reordering,
+ * Left-click (+1), and Right-click (-1).
  */
 function renderExecutionQueue() {
   const queueContainer = document.getElementById('execution-queue-list');
   const emptyState = document.getElementById('queue-empty-state');
   if (!queueContainer) return;
 
-  if (appState.queue.length === 0) {
+  const groups = appState.getConsolidatedQueue();
+
+  if (groups.length === 0) {
     queueContainer.innerHTML = '';
     if (emptyState) emptyState.style.display = 'flex';
     return;
   }
   if (emptyState) emptyState.style.display = 'none';
 
-  let activeSeen = 0;
+  let runningSlot = 0;
+  let dividerInserted = false;
   const htmlParts = [];
 
-  appState.queue.forEach((entry, index) => {
-    const { instanceId, item } = entry;
-    const orderNum = index + 1;
-    const isOverflow = orderNum > 12;
+  groups.forEach((group, groupIdx) => {
+    const { item, count } = group;
+    const startSlot = runningSlot + 1;
+    const endSlot = runningSlot + count;
+    runningSlot = endSlot;
 
-    // Insert visual 12-item limit divider right before item #13
-    if (orderNum === 13) {
+    // Check if crossing slot 12
+    const isOverflow = endSlot > 12;
+    if (!dividerInserted && endSlot >= 13) {
+      dividerInserted = true;
       htmlParts.push(`
-        <div class="queue-limit-divider" title="Items 13+ bypass the standard 12-slot Deadlock inventory limit">
+        <div class="queue-limit-divider" title="Items past slot 12 bypass the standard Deadlock inventory limit">
           <span>⚡ 12-ITEM LIMIT BYPASS (SLOTS 13+) ⚡</span>
         </div>
       `);
     }
 
-    let activeBadgeHtml = '';
-    if (item.active) {
-      activeSeen++;
-      if (activeSeen <= 4) {
-        activeBadgeHtml = `<span class="slot-active-pill" title="Claims Active Keybind Slot ${activeSeen} of 4">ACTIVE ${activeSeen}/4</span>`;
-      } else {
-        activeBadgeHtml = `<span class="slot-active-pill overflow-active" title="Exceeds 4 Active Keybind Slots — move earlier in queue if you need a keybind">ACTIVE ${activeSeen} (NO KEY)</span>`;
-      }
-    }
-
     const fallbackIcon = getFallbackSvgDataUri(item.name, item.shop);
+    const orderLabel = count > 1 ? `#${startSlot}–#${endSlot}` : `#${startSlot}`;
 
     htmlParts.push(`
-      <div class="queue-item-card shop-${item.shop} ${isOverflow ? 'is-overflow-slot' : ''} ${item.active ? 'is-active-item' : ''}"
+      <div class="queue-tile-wrapper ${isOverflow ? 'is-overflow' : ''}"
            draggable="true"
-           data-instance-id="${instanceId}"
-           data-index="${index}">
-        <div class="queue-card-top">
-          <span class="queue-order-badge ${isOverflow ? 'badge-overflow' : ''}">#${orderNum}</span>
-          ${activeBadgeHtml}
-          <span class="queue-slot-type">${isOverflow ? 'BYPASS' : 'HUD'}</span>
-        </div>
-
-        <div class="queue-card-main">
-          <div class="queue-icon-wrap ${item.active ? 'active-frame' : ''}">
+           data-group-idx="${groupIdx}"
+           data-uid="${item.uid}">
+        <span class="queue-tile-order-pill ${isOverflow ? 'badge-overflow' : ''}">${orderLabel}</span>
+        <button type="button"
+                class="shop-item-tile shop-${item.shop} is-purchased ${item.tier === 5 ? 'is-legendary' : ''}"
+                data-uid="${item.uid}"
+                aria-label="${item.name}">
+          <div class="tile-icon-frame ${item.active ? 'active-frame' : ''}">
             <img src="${item.icon}"
                  alt="${item.name}"
                  loading="lazy"
                  onerror="this.onerror=null;this.src='${fallbackIcon}';" />
+            ${count > 1 ? `<span class="tile-qty-badge">x${count}</span>` : ''}
           </div>
-          <div class="queue-item-info">
-            <div class="queue-item-name" title="${item.name}">${item.name}</div>
-            <div class="queue-item-id" title="giveitem ${item.id}">${item.id}</div>
-          </div>
-        </div>
-
-        <div class="queue-card-actions">
-          <button type="button"
-                  class="q-btn q-btn-move"
-                  data-action="move-prev"
-                  data-instance-id="${instanceId}"
-                  ${index === 0 ? 'disabled' : ''}
-                  title="Move earlier in command order">◀</button>
-          <button type="button"
-                  class="q-btn q-btn-move"
-                  data-action="move-next"
-                  data-instance-id="${instanceId}"
-                  ${index === appState.queue.length - 1 ? 'disabled' : ''}
-                  title="Move later in command order">▶</button>
-          <button type="button"
-                  class="q-btn q-btn-dup"
-                  data-action="duplicate"
-                  data-instance-id="${instanceId}"
-                  title="Duplicate this item (add another copy right after this slot)">+ Copy</button>
-          <button type="button"
-                  class="q-btn q-btn-del"
-                  data-action="remove"
-                  data-instance-id="${instanceId}"
-                  title="Remove this copy">✕</button>
-        </div>
+        </button>
       </div>
     `);
   });
 
   queueContainer.innerHTML = htmlParts.join('');
 
-  // Bind button actions inside the execution queue
-  queueContainer.querySelectorAll('[data-action]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const action = btn.getAttribute('data-action');
-      const instanceId = btn.getAttribute('data-instance-id');
-      if (action === 'move-prev') {
-        appState.nudgeInstance(instanceId, -1);
-      } else if (action === 'move-next') {
-        appState.nudgeInstance(instanceId, 1);
-      } else if (action === 'duplicate') {
-        appState.duplicateInstance(instanceId);
-        showToast('Duplicated item in queue!');
-      } else if (action === 'remove') {
-        appState.removeInstance(instanceId);
+  // Bind interactions for queue tiles: Left click (+1), Right click (-1), Drag & Drop, Hover Tooltip
+  queueContainer.querySelectorAll('.queue-tile-wrapper').forEach(wrapper => {
+    const groupIdx = Number(wrapper.getAttribute('data-group-idx'));
+    const uid = wrapper.getAttribute('data-uid');
+    const group = groups[groupIdx];
+    if (!group) return;
+
+    // Left click: Add 1 copy
+    wrapper.addEventListener('click', e => {
+      e.preventDefault();
+      appState.addItem(group.item);
+      const newCount = (appState.getCountsByUid().get(group.item.uid) || 0);
+      showItemTooltip(group.item, newCount, e);
+    });
+
+    // Right click: Delete 1 copy
+    wrapper.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      appState.removeLastByUid(group.item.uid);
+      const newCount = (appState.getCountsByUid().get(group.item.uid) || 0);
+      if (newCount > 0) {
+        showItemTooltip(group.item, newCount, e);
+      } else {
+        hideItemTooltip();
       }
     });
-  });
 
-  // Bind HTML5 Drag-and-Drop reordering and tooltip hover
-  queueContainer.querySelectorAll('.queue-item-card').forEach(card => {
-    const idx = Number(card.getAttribute('data-index'));
-    const entry = appState.queue[idx];
-    if (entry) {
-      card.addEventListener('mouseenter', e => {
-        const count = appState.getCountsByUid().get(entry.item.uid) || 0;
-        showItemTooltip(entry.item, count, e);
-      });
-      card.addEventListener('mousemove', e => {
-        updateItemTooltipPosition(e);
-      });
-      card.addEventListener('mouseleave', () => {
-        hideItemTooltip();
-      });
-    }
+    // Hover Tooltip
+    wrapper.addEventListener('mouseenter', e => {
+      const count = (appState.getCountsByUid().get(group.item.uid) || 0);
+      showItemTooltip(group.item, count, e);
+    });
 
-    card.addEventListener('dragstart', e => {
+    wrapper.addEventListener('mousemove', e => {
+      updateItemTooltipPosition(e);
+    });
+
+    wrapper.addEventListener('mouseleave', () => {
       hideItemTooltip();
-      draggedIndex = Number(card.getAttribute('data-index'));
-      card.classList.add('dragging');
+    });
+
+    // HTML5 Drag-and-Drop
+    wrapper.addEventListener('dragstart', e => {
+      hideItemTooltip();
+      draggedIndex = groupIdx;
+      wrapper.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
     });
 
-    card.addEventListener('dragend', () => {
-      card.classList.remove('dragging');
+    wrapper.addEventListener('dragend', () => {
+      wrapper.classList.remove('dragging');
       draggedIndex = null;
       queueContainer.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
     });
 
-    card.addEventListener('dragover', e => {
+    wrapper.addEventListener('dragover', e => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
-      card.classList.add('drag-over');
+      wrapper.classList.add('drag-over');
     });
 
-    card.addEventListener('dragleave', () => {
-      card.classList.remove('drag-over');
+    wrapper.addEventListener('dragleave', () => {
+      wrapper.classList.remove('drag-over');
     });
 
-    card.addEventListener('drop', e => {
+    wrapper.addEventListener('drop', e => {
       e.preventDefault();
-      card.classList.remove('drag-over');
-      const targetIndex = Number(card.getAttribute('data-index'));
-      if (draggedIndex !== null && draggedIndex !== targetIndex) {
-        appState.moveInstance(draggedIndex, targetIndex);
+      wrapper.classList.remove('drag-over');
+      const targetGroupIdx = Number(wrapper.getAttribute('data-group-idx'));
+      if (draggedIndex !== null && draggedIndex !== targetGroupIdx) {
+        const sourceGroup = groups[draggedIndex];
+        if (sourceGroup) {
+          appState.moveGroupByUid(sourceGroup.item.uid, targetGroupIdx);
+        }
       }
       draggedIndex = null;
     });
-  });
-}
-
-/**
- * Renders Option B Part 2: Selected Inventory Broken Down by Shop
- * Shows each shop's items with their global #Order number, Soul investment,
- * Duplicate (+), Remove (✕), and within-shop Up/Down (▲/▼) reorder buttons
- */
-function renderShopBreakdown() {
-  const container = document.getElementById('shop-breakdown-grid');
-  if (!container) return;
-
-  const shops = ['weapon', 'vitality', 'spirit', 'cosmetic'];
-
-  container.innerHTML = shops
-    .map(shopKey => {
-      const meta = SHOP_METADATA[shopKey];
-      const shopEntries = appState.queue
-        .map((entry, globalIdx) => ({
-          ...entry,
-          globalOrder: globalIdx + 1
-        }))
-        .filter(e => e.item.shop === shopKey);
-
-      // Hide Cosmetic column if empty to save space, unless it has items
-      if (shopKey === 'cosmetic' && shopEntries.length === 0) {
-        return '';
-      }
-
-      const totalSouls = shopEntries.reduce((sum, e) => sum + (e.item.cost || 0), 0);
-
-      return `
-        <div class="shop-breakdown-col shop-col-${shopKey}">
-          <div class="shop-col-header">
-            <div class="shop-col-title">
-              <img src="${meta.icon}" alt="${meta.label}" class="shop-header-icon" onerror="this.style.display='none'" />
-              <span>${meta.label}</span>
-              <span class="shop-col-count">${shopEntries.length}</span>
-            </div>
-            ${
-              totalSouls > 0
-                ? `<div class="shop-col-souls" title="Total Soul Value in ${meta.label}"> ${totalSouls.toLocaleString()} Souls</div>`
-                : `<div class="shop-col-souls">Special</div>`
-            }
-          </div>
-
-          <div class="shop-col-list">
-            ${
-              shopEntries.length === 0
-                ? `<div class="shop-col-empty">No ${meta.label} items selected</div>`
-                : shopEntries
-                    .map((entry, idxInShop) => {
-                      const fallbackIcon = getFallbackSvgDataUri(entry.item.name, entry.item.shop);
-                      return `
-                        <div class="shop-breakdown-row shop-row-${shopKey}">
-                          <span class="breakdown-order-pill" title="Position #${entry.globalOrder} in global command">#${entry.globalOrder}</span>
-                          <img src="${entry.item.icon}"
-                               alt="${entry.item.name}"
-                               class="breakdown-row-icon ${entry.item.active ? 'active-frame' : ''}"
-                               onerror="this.onerror=null;this.src='${fallbackIcon}';" />
-                          <div class="breakdown-row-text">
-                            <span class="breakdown-row-name">${entry.item.name}</span>
-                            <span class="breakdown-row-sub">
-                              ${entry.item.tier === 5 ? '★ Legendary' : entry.item.tier > 0 ? `T${entry.item.tier}` : entry.item.section}
-                              ${entry.item.active ? ' • Active' : ''}
-                            </span>
-                          </div>
-                          <div class="breakdown-row-actions">
-                            <button type="button"
-                                    class="b-btn"
-                                    data-shop-action="up"
-                                    data-instance-id="${entry.instanceId}"
-                                    ${idxInShop === 0 ? 'disabled' : ''}
-                                    title="Move up within ${meta.label} order">▲</button>
-                            <button type="button"
-                                    class="b-btn"
-                                    data-shop-action="down"
-                                    data-instance-id="${entry.instanceId}"
-                                    ${idxInShop === shopEntries.length - 1 ? 'disabled' : ''}
-                                    title="Move down within ${meta.label} order">▼</button>
-                            <button type="button"
-                                    class="b-btn b-btn-dup"
-                                    data-shop-action="dup"
-                                    data-instance-id="${entry.instanceId}"
-                                    title="Duplicate this item (+1 copy)">+</button>
-                            <button type="button"
-                                    class="b-btn b-btn-del"
-                                    data-shop-action="del"
-                                    data-instance-id="${entry.instanceId}"
-                                    title="Remove this copy">✕</button>
-                          </div>
-                        </div>
-                      `;
-                    })
-                    .join('')
-            }
-          </div>
-        </div>
-      `;
-    })
-    .join('');
-
-  container.querySelectorAll('[data-shop-action]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const action = btn.getAttribute('data-shop-action');
-      const instanceId = btn.getAttribute('data-instance-id');
-      if (action === 'up') {
-        appState.nudgeWithinShop(instanceId, -1);
-      } else if (action === 'down') {
-        appState.nudgeWithinShop(instanceId, 1);
-      } else if (action === 'dup') {
-        appState.duplicateInstance(instanceId);
-        showToast('Added duplicate copy!');
-      } else if (action === 'del') {
-        appState.removeInstance(instanceId);
-      }
-    });
-  });
-
-  // Bind tooltip hover on shop breakdown rows
-  container.querySelectorAll('.shop-breakdown-row').forEach(row => {
-    const instId = row.querySelector('[data-instance-id]')?.getAttribute('data-instance-id');
-    const entry = appState.queue.find(e => e.instanceId === instId);
-    if (entry) {
-      row.addEventListener('mouseenter', e => {
-        const count = appState.getCountsByUid().get(entry.item.uid) || 0;
-        showItemTooltip(entry.item, count, e);
-      });
-      row.addEventListener('mousemove', e => {
-        updateItemTooltipPosition(e);
-      });
-      row.addEventListener('mouseleave', () => {
-        hideItemTooltip();
-      });
-    }
   });
 }
 
@@ -614,38 +456,13 @@ function renderCatalogItemTile(item, count) {
  */
 function renderCatalog() {
   const container = document.getElementById('catalog-sections-container');
-  const resultCountEl = document.getElementById('catalog-result-count');
   if (!container) return;
 
-  const filtered = appState.getFilteredCatalog();
   const countsByUid = appState.getCountsByUid();
-
-  if (resultCountEl) {
-    resultCountEl.textContent = `Showing ${filtered.length} item${filtered.length === 1 ? '' : 's'}`;
-  }
-
-  if (filtered.length === 0) {
-    container.innerHTML = `
-      <div class="catalog-empty">
-        <p>No items match your current filter or search query.</p>
-        <button type="button" id="reset-filters-empty-btn" class="btn btn-secondary">Reset All Filters</button>
-      </div>
-    `;
-    const resetBtn = document.getElementById('reset-filters-empty-btn');
-    if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
-        const searchInput = document.getElementById('catalog-search-input');
-        if (searchInput) searchInput.value = '';
-        appState.resetFilters();
-      });
-    }
-    return;
-  }
-
   const htmlSections = [];
 
   // 1. Standard Curiosity Shop + Legendaries (Grouped by Shop -> Tier Shelves)
-  const mainItems = filtered.filter(i => i.section === 'shop' || i.section === 'legendary');
+  const mainItems = ITEMS.filter(i => i.section === 'shop' || i.section === 'legendary');
   if (mainItems.length > 0) {
     const shops = ['weapon', 'vitality', 'spirit'];
     const activeShops = shops.filter(shopKey => mainItems.some(i => i.shop === shopKey));
@@ -715,7 +532,7 @@ function renderCatalog() {
   }
 
   // 2. Dedicated Cosmetic Items Section
-  const cosmeticItems = filtered.filter(i => i.section === 'cosmetic');
+  const cosmeticItems = ITEMS.filter(i => i.section === 'cosmetic');
   if (cosmeticItems.length > 0) {
     htmlSections.push(`
       <section class="special-shelf-section special-section-cosmetic" id="section-cosmetic">
@@ -734,7 +551,7 @@ function renderCatalog() {
   }
 
   // 3. Dedicated Unreleased & Cut Items Section
-  const unreleasedItems = filtered.filter(i => i.section === 'unreleased');
+  const unreleasedItems = ITEMS.filter(i => i.section === 'unreleased');
   if (unreleasedItems.length > 0) {
     const subShops = ['weapon', 'spirit', 'vitality'];
     const unreleasedColsHtml = subShops
@@ -819,28 +636,14 @@ function renderCatalog() {
  * Syncs filter button active states with appState.filters
  */
 function syncFilterControlsUI() {
-  const { section, shop, tier, activeOnly } = appState.filters;
-
-  document.querySelectorAll('[data-filter-section]').forEach(btn => {
-    btn.classList.toggle('active', btn.getAttribute('data-filter-section') === section);
-  });
-
-  document.querySelectorAll('[data-filter-shop]').forEach(btn => {
-    btn.classList.toggle('active', btn.getAttribute('data-filter-shop') === shop);
-  });
-
-  document.querySelectorAll('[data-filter-tier]').forEach(btn => {
-    btn.classList.toggle('active', String(btn.getAttribute('data-filter-tier')) === String(tier));
-  });
-
-  const activeToggle = document.getElementById('filter-active-only');
-  if (activeToggle) {
-    activeToggle.checked = activeOnly;
-  }
-
   const cheatsToggle = document.getElementById('opt-include-cheats');
   if (cheatsToggle) {
     cheatsToggle.checked = appState.options.includeCheats;
+  }
+
+  const enhancedToggle = document.getElementById('opt-force-enhanced');
+  if (enhancedToggle) {
+    enhancedToggle.checked = appState.options.forceEnhanced;
   }
 
   const formatSelect = document.getElementById('opt-format-select');
@@ -861,7 +664,6 @@ function renderAll() {
   syncFilterControlsUI();
   renderCommandOutput();
   renderExecutionQueue();
-  renderShopBreakdown();
   renderCatalog();
 }
 
@@ -985,44 +787,6 @@ export function initApp() {
         showToast(`Added "${val}" to queue!`);
       }
       input.value = '';
-    });
-  }
-
-  // Section Filter Tabs (All, Curiosity Shop, Legendaries, Cosmetics, Unreleased)
-  document.querySelectorAll('[data-filter-section]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      appState.setFilter('section', btn.getAttribute('data-filter-section'));
-    });
-  });
-
-  // Shop Filter Tabs (All, Weapon, Vitality, Spirit, Cosmetic)
-  document.querySelectorAll('[data-filter-shop]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      appState.setFilter('shop', btn.getAttribute('data-filter-shop'));
-    });
-  });
-
-  // Tier Filter Pills
-  document.querySelectorAll('[data-filter-tier]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const val = btn.getAttribute('data-filter-tier');
-      appState.setFilter('tier', val === 'all' ? 'all' : Number(val));
-    });
-  });
-
-  // Active Only Toggle
-  const activeOnlyCheckbox = document.getElementById('filter-active-only');
-  if (activeOnlyCheckbox) {
-    activeOnlyCheckbox.addEventListener('change', e => {
-      appState.setFilter('activeOnly', e.target.checked);
-    });
-  }
-
-  // Search Input
-  const searchInput = document.getElementById('catalog-search-input');
-  if (searchInput) {
-    searchInput.addEventListener('input', e => {
-      appState.setFilter('search', e.target.value);
     });
   }
 

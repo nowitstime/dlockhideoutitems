@@ -150,6 +150,62 @@ class InventoryState {
   }
 
   /**
+   * Moves all instances of an item (by uid) together to a new group position
+   * preserving relative order of other items
+   */
+  moveGroupByUid(uid, targetGroupIndex) {
+    const groups = this.getConsolidatedQueue();
+    const currentGroupIdx = groups.findIndex(g => g.item.uid === uid);
+    if (currentGroupIdx === -1 || currentGroupIdx === targetGroupIndex || targetGroupIndex < 0 || targetGroupIndex >= groups.length) {
+      return;
+    }
+
+    const [movedGroup] = groups.splice(currentGroupIdx, 1);
+    groups.splice(targetGroupIndex, 0, movedGroup);
+
+    // Rebuild flattened queue maintaining contiguous copies
+    const newQueue = [];
+    for (const group of groups) {
+      for (const instance of group.instances) {
+        newQueue.push(instance);
+      }
+    }
+    this.queue = newQueue;
+    this.notify();
+  }
+
+  /**
+   * Returns consolidated queue grouped by item.uid:
+   * Array of { item, count, instances, firstIndex, lastIndex, isOverflow }
+   */
+  getConsolidatedQueue() {
+    const groups = [];
+    const groupMap = new Map();
+
+    this.queue.forEach((entry, queueIdx) => {
+      const uid = entry.item.uid;
+      if (!groupMap.has(uid)) {
+        const groupObj = {
+          item: entry.item,
+          instances: [entry],
+          firstIndex: queueIdx,
+          lastIndex: queueIdx,
+          count: 1
+        };
+        groupMap.set(uid, groupObj);
+        groups.push(groupObj);
+      } else {
+        const existing = groupMap.get(uid);
+        existing.instances.push(entry);
+        existing.lastIndex = queueIdx;
+        existing.count++;
+      }
+    });
+
+    return groups;
+  }
+
+  /**
    * Moves an item from fromIndex to toIndex in the global execution order
    */
   moveInstance(fromIndex, toIndex) {

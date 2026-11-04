@@ -107,113 +107,37 @@
       </div>
     </section>
 
-    <!-- 2. Option B Dual Inventory Display: Exact Command Order Queue + Shop Breakdown -->
-    <div class="inventory-workspace">
-      <!-- 2A. Exact Command Execution Order (Slots 1 -> N) -->
-      <section class="panel-card" aria-label="Exact Command Execution Order">
-        <div class="panel-header">
-          <div class="panel-title-wrap">
-            <h2>1. Exact Command Execution Order (Drag or Click to Reorder &amp; Duplicate)</h2>
-            <p class="panel-subtitle">
-              Items are given in this exact sequence (<code>#1 → #N</code>). The first 4 <strong>Active</strong> items claim your active keybind slots; items <strong>#13+</strong> overflow past the 12-item HUD limit.
-            </p>
-          </div>
-
-          <div class="panel-actions">
-            <button type="button" id="prioritize-actives-btn" class="btn btn-secondary" title="Move Active items to the start of the command so they get bound to your 4 active slots">
-              ⚡ Put Actives First (Slots 1–4)
-            </button>
-            <button type="button" id="sort-by-shop-btn" class="btn btn-secondary" title="Group command order by Weapon → Vitality → Spirit">
-              🗂 Sort Order by Shop
-            </button>
-            <button type="button" id="clear-queue-btn" class="btn btn-danger">
-              🗑 Clear All
-            </button>
-          </div>
+    <!-- Selected Inventory Queue: Exact Command Order (Slots 1 -> N) -->
+    <section class="panel-card" aria-label="Exact Command Execution Order">
+      <div class="panel-header">
+        <div class="panel-title-wrap">
+          <h2>Exact Command Execution Order</h2>
+          <p class="panel-subtitle">
+            Items run sequentially (<code>#1 → #N</code>). Click a tile below or in queue to add copies (+1), right-click to delete (-1), or drag tiles to reorder.
+          </p>
         </div>
 
-        <div id="queue-empty-state" class="queue-empty-state">
-          <p>Your inventory queue is empty. Click any item icon in the shop below (or choose a Quick Preset above) to start building your stack!</p>
-        </div>
-
-        <div id="execution-queue-list" class="execution-queue-list"></div>
-      </section>
-
-      <!-- 2B. Selected Items Broken Down by Shop -->
-      <section class="panel-card" aria-label="Selected Inventory Broken Down by Shop">
-        <div class="panel-header">
-          <div class="panel-title-wrap">
-            <h2>2. Selected Items Broken Down by Shop</h2>
-            <p class="panel-subtitle">
-              View your chosen stack by shop category with total Soul investments, global <code>#Order</code> badges, within-shop reordering (<code>▲/▼</code>), and one-click duplicating (<code>+</code>).
-            </p>
-          </div>
-        </div>
-
-        <div id="shop-breakdown-grid" class="shop-breakdown-grid"></div>
-      </section>
-    </div>
-
-    <!-- 3. Item Catalog Filter Bar -->
-    <section class="catalog-filter-panel" aria-label="Item Catalog Filters">
-      <div class="filter-top-row">
-        <div class="section-tabs" role="tablist" aria-label="Item Sections">
-          <button type="button" class="filter-tab active" data-filter-section="all">
-            All Items (254)
+        <div class="panel-actions">
+          <button type="button" id="prioritize-actives-btn" class="btn btn-secondary" title="Move Active items to the start of the command so they get bound to your 4 active slots">
+            ⚡ Put Actives First (Slots 1–4)
           </button>
-          <button type="button" class="filter-tab" data-filter-section="curiosity">
-            Curiosity Shop + Legendaries (173)
+          <button type="button" id="sort-by-shop-btn" class="btn btn-secondary" title="Group command order by Weapon → Vitality → Spirit">
+            🗂 Sort Order by Shop
           </button>
-          <button type="button" class="filter-tab" data-filter-section="legendary">
-            ★ Legendaries Only (17)
+          <button type="button" id="clear-queue-btn" class="btn btn-danger">
+            🗑 Clear All
           </button>
-          <button type="button" class="filter-tab" data-filter-section="cosmetic">
-            ❄️ Cosmetic Items (2)
-          </button>
-          <button type="button" class="filter-tab" data-filter-section="unreleased">
-            🧪 Unreleased &amp; Cut Items (79)
-          </button>
-        </div>
-
-        <div class="search-box-wrap">
-          <input
-            type="search"
-            id="catalog-search-input"
-            class="catalog-search-input"
-            placeholder="Search by item name or upgrade_ code..."
-            aria-label="Search items"
-          />
         </div>
       </div>
 
-      <div class="filter-bottom-row">
-        <div class="shop-pills" aria-label="Filter by Shop">
-          <button type="button" class="pill-btn active" data-filter-shop="all">All Shops</button>
-          <button type="button" class="pill-btn shop-pill-weapon" data-filter-shop="weapon">🟠 Weapon</button>
-          <button type="button" class="pill-btn shop-pill-vitality" data-filter-shop="vitality">🟢 Vitality</button>
-          <button type="button" class="pill-btn shop-pill-spirit" data-filter-shop="spirit">🟣 Spirit</button>
-          <button type="button" class="pill-btn" data-filter-shop="cosmetic">🔵 Cosmetic</button>
-        </div>
-
-        <div class="tier-pills" aria-label="Filter by Tier">
-          <button type="button" class="pill-btn active" data-filter-tier="all">All Tiers</button>
-          <button type="button" class="pill-btn" data-filter-tier="5">★ Legendary</button>
-          <button type="button" class="pill-btn" data-filter-tier="4">Tier 4 (6,400)</button>
-          <button type="button" class="pill-btn" data-filter-tier="3">Tier 3 (3,200)</button>
-          <button type="button" class="pill-btn" data-filter-tier="2">Tier 2 (1,600)</button>
-          <button type="button" class="pill-btn" data-filter-tier="1">Tier 1 (800)</button>
-
-          <label class="opt-label" style="margin-left: 0.5rem;">
-            <input type="checkbox" id="filter-active-only" />
-            <span>Active Items Only</span>
-          </label>
-        </div>
-
-        <span id="catalog-result-count" class="catalog-result-count">Showing 254 items</span>
+      <div id="queue-empty-state" class="queue-empty-state">
+        <p>Your inventory queue is empty. Click any item icon in the shop below to start building your stack!</p>
       </div>
+
+      <div id="execution-queue-list" class="execution-queue-list"></div>
     </section>
 
-    <!-- 4. Item Catalog Sections (Shop, Legendaries, Cosmetics, Unreleased) -->
+    <!-- Item Catalog Sections (Shop, Legendaries, Cosmetics, Unreleased) -->
     <div id="catalog-sections-container" class="catalog-sections-container"></div>
   </main>
 

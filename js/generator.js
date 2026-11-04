@@ -22,11 +22,13 @@ export function generateCommandData(queue, options = {}) {
 
   const individualCommands = queue.map(({ item }) => `giveitem ${item.id}`);
 
-  // When forceEnhanced is enabled, it requires sv_cheats 1 and the console variable
+  // When forceEnhanced is enabled, add citadel_item_purchases_force_enhanced true
   if (forceEnhanced) {
     individualCommands.unshift('citadel_item_purchases_force_enhanced true');
-    individualCommands.unshift('sv_cheats 1');
-  } else if (includeCheats) {
+  }
+
+  // Prepend sv_cheats 1 if explicitly enabled via the Prepend sv_cheats option
+  if (includeCheats) {
     individualCommands.unshift('sv_cheats 1');
   }
 
@@ -75,8 +77,8 @@ export function generateCommandData(queue, options = {}) {
  */
 export function generateCfgFileContent(queue, options = {}) {
   // Support both boolean includeCheats legacy call and options object
-  const includeCheats = typeof options === 'boolean' ? options : (options.includeCheats || options.forceEnhanced || true);
-  const forceEnhanced = typeof options === 'object' && options.forceEnhanced;
+  const includeCheats = typeof options === 'boolean' ? options : !!options.includeCheats;
+  const forceEnhanced = typeof options === 'object' && !!options.forceEnhanced;
 
   const lines = [
     '// Deadlock Hideout & Legendary Item Stack',
