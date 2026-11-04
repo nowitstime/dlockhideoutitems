@@ -527,10 +527,9 @@ body {
 
 .queue-tile-wrapper {
   position: relative;
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  justify-content: center;
   cursor: grab;
   transition: transform 0.15s ease, opacity 0.15s ease;
   user-select: none;
@@ -541,8 +540,8 @@ body {
 }
 
 .queue-tile-wrapper.dragging {
-  opacity: 0.4;
-  transform: scale(0.92);
+  opacity: 0.35;
+  transform: scale(0.9);
 }
 
 .queue-tile-wrapper.drag-over .shop-item-tile {
@@ -551,21 +550,16 @@ body {
   transform: translateY(-2px);
 }
 
-.queue-tile-order-pill {
-  font-size: 0.68rem;
-  font-weight: 800;
-  background: #090b10;
-  color: #cbd5e1;
-  padding: 0.08rem 0.38rem;
-  border-radius: 4px;
-  border: 1px solid var(--border-subtle);
-  line-height: 1.2;
+/* Queue items have NO yellow purchased outline — completely clean tile */
+.queue-item-tile {
+  outline: none !important;
+  border-color: var(--border-subtle);
+  box-shadow: none;
 }
 
-.queue-tile-order-pill.badge-overflow {
-  background: rgba(244, 63, 94, 0.25);
-  border-color: var(--bypass-accent);
-  color: #fecdd3;
+.queue-item-tile:hover {
+  border-color: #f8fafc;
+  transform: translateY(-2px) scale(1.06);
 }
 
 /* ==========================================================================

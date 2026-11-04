@@ -183,38 +183,31 @@ function renderCommandOutput() {
 }
 
 /**
- * Renders the Selected Inventory Queue as compact consolidated item tiles
- * matching the shop look, with #Order, xN badge, drag-and-drop reordering,
- * Left-click (+1), and Right-click (-1).
+ * Renders the Selected Inventory Queue as individual unstacked icon tiles
+ * with no numbers above them and no yellow outline, maintaining exact execution order
+ * with drag-and-drop reordering, left-click (+1 duplicate copy), and right-click (-1 remove).
  */
 function renderExecutionQueue() {
   const queueContainer = document.getElementById('execution-queue-list');
   const emptyState = document.getElementById('queue-empty-state');
   if (!queueContainer) return;
 
-  const groups = appState.getConsolidatedQueue();
-
-  if (groups.length === 0) {
+  if (appState.queue.length === 0) {
     queueContainer.innerHTML = '';
     if (emptyState) emptyState.style.display = 'flex';
     return;
   }
   if (emptyState) emptyState.style.display = 'none';
 
-  let runningSlot = 0;
-  let dividerInserted = false;
+  let activeSeen = 0;
   const htmlParts = [];
 
-  groups.forEach((group, groupIdx) => {
-    const { item, count } = group;
-    const startSlot = runningSlot + 1;
-    const endSlot = runningSlot + count;
-    runningSlot = endSlot;
+  appState.queue.forEach((entry, index) => {
+    const { instanceId, item } = entry;
+    const slotNum = index + 1;
 
-    // Check if crossing slot 12
-    const isOverflow = endSlot > 12;
-    if (!dividerInserted && endSlot >= 13) {
-      dividerInserted = true;
+    // Insert visual 12-item limit divider right before slot 13
+    if (slotNum === 13) {
       htmlParts.push(`
         <div class="queue-limit-divider" title="Items past slot 12 bypass the standard Deadlock inventory limit">
           <span>⚡ 12-ITEM LIMIT BYPASS (SLOTS 13+) ⚡</span>
@@ -223,24 +216,21 @@ function renderExecutionQueue() {
     }
 
     const fallbackIcon = getFallbackSvgDataUri(item.name, item.shop);
-    const orderLabel = count > 1 ? `#${startSlot}–#${endSlot}` : `#${startSlot}`;
 
     htmlParts.push(`
-      <div class="queue-tile-wrapper ${isOverflow ? 'is-overflow' : ''}"
+      <div class="queue-tile-wrapper ${slotNum > 12 ? 'is-overflow' : ''}"
            draggable="true"
-           data-group-idx="${groupIdx}"
-           data-uid="${item.uid}">
-        <span class="queue-tile-order-pill ${isOverflow ? 'badge-overflow' : ''}">${orderLabel}</span>
+           data-index="${index}"
+           data-instance-id="${instanceId}">
         <button type="button"
-                class="shop-item-tile shop-${item.shop} is-purchased ${item.tier === 5 ? 'is-legendary' : ''}"
-                data-uid="${item.uid}"
+                class="shop-item-tile queue-item-tile shop-${item.shop} ${item.tier === 5 ? 'is-legendary' : ''}"
+                data-instance-id="${instanceId}"
                 aria-label="${item.name}">
           <div class="tile-icon-frame ${item.active ? 'active-frame' : ''}">
             <img src="${item.icon}"
                  alt="${item.name}"
                  loading="lazy"
                  onerror="this.onerror=null;this.src='${fallbackIcon}';" />
-            ${count > 1 ? `<span class="tile-qty-badge">x${count}</span>` : ''}
           </div>
         </button>
       </div>
@@ -249,28 +239,27 @@ function renderExecutionQueue() {
 
   queueContainer.innerHTML = htmlParts.join('');
 
-  // Bind interactions for queue tiles: Left click (+1), Right click (-1), Drag & Drop, Hover Tooltip
+  // Bind interactions for queue tiles: Left click (+1 copy right after), Right click (remove this instance), Drag & Drop, Hover Tooltip
   queueContainer.querySelectorAll('.queue-tile-wrapper').forEach(wrapper => {
-    const groupIdx = Number(wrapper.getAttribute('data-group-idx'));
-    const uid = wrapper.getAttribute('data-uid');
-    const group = groups[groupIdx];
-    if (!group) return;
+    const index = Number(wrapper.getAttribute('data-index'));
+    const entry = appState.queue[index];
+    if (!entry) return;
 
-    // Left click: Add 1 copy
+    // Left click: Add another copy right after this one in queue
     wrapper.addEventListener('click', e => {
       e.preventDefault();
-      appState.addItem(group.item);
-      const newCount = (appState.getCountsByUid().get(group.item.uid) || 0);
-      showItemTooltip(group.item, newCount, e);
+      appState.duplicateInstance(entry.instanceId);
+      const newCount = (appState.getCountsByUid().get(entry.item.uid) || 0);
+      showItemTooltip(entry.item, newCount, e);
     });
 
-    // Right click: Delete 1 copy
+    // Right click: Remove this specific item from the queue
     wrapper.addEventListener('contextmenu', e => {
       e.preventDefault();
-      appState.removeLastByUid(group.item.uid);
-      const newCount = (appState.getCountsByUid().get(group.item.uid) || 0);
+      appState.removeInstance(entry.instanceId);
+      const newCount = (appState.getCountsByUid().get(entry.item.uid) || 0);
       if (newCount > 0) {
-        showItemTooltip(group.item, newCount, e);
+        showItemTooltip(entry.item, newCount, e);
       } else {
         hideItemTooltip();
       }
@@ -278,8 +267,8 @@ function renderExecutionQueue() {
 
     // Hover Tooltip
     wrapper.addEventListener('mouseenter', e => {
-      const count = (appState.getCountsByUid().get(group.item.uid) || 0);
-      showItemTooltip(group.item, count, e);
+      const count = (appState.getCountsByUid().get(entry.item.uid) || 0);
+      showItemTooltip(entry.item, count, e);
     });
 
     wrapper.addEventListener('mousemove', e => {
@@ -293,7 +282,7 @@ function renderExecutionQueue() {
     // HTML5 Drag-and-Drop
     wrapper.addEventListener('dragstart', e => {
       hideItemTooltip();
-      draggedIndex = groupIdx;
+      draggedIndex = index;
       wrapper.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
     });
@@ -317,12 +306,9 @@ function renderExecutionQueue() {
     wrapper.addEventListener('drop', e => {
       e.preventDefault();
       wrapper.classList.remove('drag-over');
-      const targetGroupIdx = Number(wrapper.getAttribute('data-group-idx'));
-      if (draggedIndex !== null && draggedIndex !== targetGroupIdx) {
-        const sourceGroup = groups[draggedIndex];
-        if (sourceGroup) {
-          appState.moveGroupByUid(sourceGroup.item.uid, targetGroupIdx);
-        }
+      const targetIndex = Number(wrapper.getAttribute('data-index'));
+      if (draggedIndex !== null && draggedIndex !== targetIndex) {
+        appState.moveInstance(draggedIndex, targetIndex);
       }
       draggedIndex = null;
     });
