@@ -107,10 +107,23 @@ class InventoryState {
   }
 
   /**
-   * Appends one copy of an item to the end of the execution queue
+   * Appends or stacks an item contiguous to its existing slot in queue
    */
   addItem(item) {
-    this.queue.push(createInstance(item));
+    // Find the last occurrence of this item in the queue so copies group together
+    let lastIdx = -1;
+    for (let i = this.queue.length - 1; i >= 0; i--) {
+      if (this.queue[i].item.uid === item.uid) {
+        lastIdx = i;
+        break;
+      }
+    }
+    const newInst = createInstance(item);
+    if (lastIdx !== -1) {
+      this.queue.splice(lastIdx + 1, 0, newInst);
+    } else {
+      this.queue.push(newInst);
+    }
     this.notify();
   }
 
