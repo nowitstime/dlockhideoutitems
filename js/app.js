@@ -299,9 +299,25 @@ function renderExecutionQueue() {
     });
   });
 
-  // Bind HTML5 Drag-and-Drop reordering
+  // Bind HTML5 Drag-and-Drop reordering and tooltip hover
   queueContainer.querySelectorAll('.queue-item-card').forEach(card => {
+    const idx = Number(card.getAttribute('data-index'));
+    const entry = appState.queue[idx];
+    if (entry) {
+      card.addEventListener('mouseenter', e => {
+        const count = appState.getCountsByUid().get(entry.item.uid) || 0;
+        showItemTooltip(entry.item, count, e);
+      });
+      card.addEventListener('mousemove', e => {
+        updateItemTooltipPosition(e);
+      });
+      card.addEventListener('mouseleave', () => {
+        hideItemTooltip();
+      });
+    }
+
     card.addEventListener('dragstart', e => {
+      hideItemTooltip();
       draggedIndex = Number(card.getAttribute('data-index'));
       card.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
@@ -450,74 +466,134 @@ function renderShopBreakdown() {
       }
     });
   });
+
+  // Bind tooltip hover on shop breakdown rows
+  container.querySelectorAll('.shop-breakdown-row').forEach(row => {
+    const instId = row.querySelector('[data-instance-id]')?.getAttribute('data-instance-id');
+    const entry = appState.queue.find(e => e.instanceId === instId);
+    if (entry) {
+      row.addEventListener('mouseenter', e => {
+        const count = appState.getCountsByUid().get(entry.item.uid) || 0;
+        showItemTooltip(entry.item, count, e);
+      });
+      row.addEventListener('mousemove', e => {
+        updateItemTooltipPosition(e);
+      });
+      row.addEventListener('mouseleave', () => {
+        hideItemTooltip();
+      });
+    }
+  });
 }
 
 /**
- * Helper to render a single Item Card in the Catalog Grid
+ * Displays a rich Deadlock-style hover tooltip for any item
  */
-function renderCatalogItemCard(item, countsByUid) {
-  const count = countsByUid.get(item.uid) || 0;
-  const fallbackIcon = getFallbackSvgDataUri(item.name, item.shop);
+function showItemTooltip(item, count, e) {
+  const tooltip = document.getElementById('item-shop-tooltip');
+  if (!tooltip) return;
+
+  const shopMeta = SHOP_METADATA[item.shop] || { label: item.shop, color: '#e58e26' };
   const tierLabel =
     item.tier === 5
-      ? '★ LEGENDARY'
+      ? '★ Legendary Item'
       : item.tier > 0
-      ? `T${item.tier} • ${item.cost.toLocaleString()}`
+      ? `Tier ${item.tier} • ${item.cost.toLocaleString()} Souls`
       : item.section === 'cosmetic'
-      ? 'COSMETIC'
-      : 'UNRELEASED';
+      ? 'Seasonal Cosmetic'
+      : 'Unreleased Item';
+
+  const activeBadge = item.active
+    ? `<span class="tt-tag tt-tag-active">ACTIVE</span>`
+    : `<span class="tt-tag tt-tag-passive">PASSIVE</span>`;
+
+  const fallbackIcon = getFallbackSvgDataUri(item.name, item.shop);
+
+  tooltip.innerHTML = `
+    <div class="tt-header">
+      <img src="${item.icon}" alt="${item.name}" class="tt-icon ${item.active ? 'active-frame' : ''}" onerror="this.onerror=null;this.src='${fallbackIcon}';" />
+      <div class="tt-title-wrap">
+        <div class="tt-name">${item.name}</div>
+        <div class="tt-meta">
+          <span class="tt-shop" style="color: ${shopMeta.color}">${shopMeta.label}</span> •
+          <span>${tierLabel}</span>
+          ${activeBadge}
+        </div>
+      </div>
+    </div>
+    <div class="tt-divider"></div>
+    <div class="tt-desc">${item.description || 'Provides bonus stats and effects in Deadlock.'}</div>
+    <div class="tt-code"><code>giveitem ${item.id}</code></div>
+    <div class="tt-footer">
+      <span class="tt-hint"><strong>Left-Click:</strong> +1 copy ${count > 0 ? `(Purchased: ×${count})` : ''}</span>
+      ${count > 0 ? `<span class="tt-hint-sub"><strong>Right-Click:</strong> −1 copy</span>` : ''}
+    </div>
+  `;
+
+  tooltip.style.display = 'block';
+  tooltip.setAttribute('aria-hidden', 'false');
+  updateItemTooltipPosition(e);
+}
+
+function updateItemTooltipPosition(e) {
+  const tooltip = document.getElementById('item-shop-tooltip');
+  if (!tooltip || tooltip.style.display === 'none') return;
+
+  const offset = 14;
+  let x = e.clientX + offset;
+  let y = e.clientY + offset;
+
+  const rect = tooltip.getBoundingClientRect();
+  const winW = window.innerWidth;
+  const winH = window.innerHeight;
+
+  if (x + rect.width > winW - 12) {
+    x = e.clientX - rect.width - offset;
+  }
+  if (y + rect.height > winH - 12) {
+    y = e.clientY - rect.height - offset;
+  }
+  if (x < 12) x = 12;
+  if (y < 12) y = 12;
+
+  tooltip.style.left = `${x}px`;
+  tooltip.style.top = `${y}px`;
+}
+
+function hideItemTooltip() {
+  const tooltip = document.getElementById('item-shop-tooltip');
+  if (!tooltip) return;
+  tooltip.style.display = 'none';
+  tooltip.setAttribute('aria-hidden', 'true');
+}
+
+/**
+ * Helper to render an authentic compact Item Icon Tile in the Shop Grid
+ */
+function renderCatalogItemTile(item, count) {
+  const fallbackIcon = getFallbackSvgDataUri(item.name, item.shop);
 
   return `
-    <div class="catalog-item-card shop-${item.shop} ${count > 0 ? 'is-selected' : ''} ${item.tier === 5 ? 'is-legendary' : ''}"
-         data-uid="${item.uid}"
-         title="Click to add ${item.name} (giveitem ${item.id})">
-      <div class="catalog-card-top">
-        <span class="catalog-tier-tag tier-${item.tier}">${tierLabel}</span>
-        ${item.active ? `<span class="catalog-active-tag">ACTIVE</span>` : ''}
-      </div>
-
-      <div class="catalog-icon-container ${item.active ? 'active-frame' : ''}">
+    <button type="button"
+            class="shop-item-tile shop-${item.shop} ${count > 0 ? 'is-purchased' : ''} ${item.tier === 5 ? 'is-legendary' : ''}"
+            data-uid="${item.uid}"
+            aria-label="${item.name}">
+      <div class="tile-icon-frame ${item.active ? 'active-frame' : ''}">
         <img src="${item.icon}"
              alt="${item.name}"
              loading="lazy"
              onerror="this.onerror=null;this.src='${fallbackIcon}';" />
-        ${
-          count > 0
-            ? `<span class="catalog-stack-badge" title="${count} cop${count === 1 ? 'y' : 'ies'} in queue">×${count}</span>`
-            : ''
-        }
+        ${count > 0 ? `<span class="tile-qty-badge">x${count}</span>` : ''}
       </div>
-
-      <div class="catalog-item-name">${item.name}</div>
-      <div class="catalog-item-code">${item.id}</div>
-
-      <div class="catalog-card-controls">
-        <button type="button"
-                class="cat-ctrl-btn cat-btn-add"
-                data-card-action="add"
-                data-uid="${item.uid}"
-                title="Add / Duplicate ${item.name} (+1 copy)">
-          ${count > 0 ? '+ Duplicate' : '+ Add Item'}
-        </button>
-        ${
-          count > 0
-            ? `<button type="button"
-                       class="cat-ctrl-btn cat-btn-sub"
-                       data-card-action="remove-one"
-                       data-uid="${item.uid}"
-                       title="Remove 1 copy of ${item.name}">−</button>`
-            : ''
-        }
-      </div>
-    </div>
+    </button>
   `;
 }
 
 /**
- * Renders the Item Picker Catalog organized into clear sections:
- * - Curiosity Shop & Legendaries (grouped by Shop & Tier)
- * - Seasonal Cosmetic Items
- * - Unreleased & Cut Items (grouped by Weapon, Vitality, Spirit)
+ * Renders the Store Shelves organized into compact Deadlock shop rows:
+ * - Curiosity Shop & Legendaries in 3 side-by-side shop columns (Weapon / Vitality / Spirit)
+ * - Seasonal Cosmetic Items Shelf
+ * - Unreleased & Cut Items Shelves
  */
 function renderCatalog() {
   const container = document.getElementById('catalog-sections-container');
@@ -551,97 +627,63 @@ function renderCatalog() {
 
   const htmlSections = [];
 
-  // 1. Standard Curiosity Shop + Legendaries (Grouped by Shop -> Tier)
+  // 1. Standard Curiosity Shop + Legendaries (Grouped by Shop -> Tier Shelves)
   const mainItems = filtered.filter(i => i.section === 'shop' || i.section === 'legendary');
   if (mainItems.length > 0) {
     const shops = ['weapon', 'vitality', 'spirit'];
-    for (const shopKey of shops) {
-      const shopItems = mainItems.filter(i => i.shop === shopKey);
-      if (shopItems.length === 0) continue;
+    const activeShops = shops.filter(shopKey => mainItems.some(i => i.shop === shopKey));
 
-      const meta = SHOP_METADATA[shopKey];
-      const tiers = [5, 4, 3, 2, 1]; // Put Legendary & high tiers easy to spot, or 1->5? Let's show Legendary (Tier 5) first or Tier 1->5 based on filter!
-      // Let's order Tier 5 (Legendary) at top of each shop if viewing all, or standard 1, 2, 3, 4, 5:
-      // Actually having Legendary (Tier 5) highlighted first or 1->5 is great — let's put Tier 5 (Legendary) first because the site's main purpose is Hideout & Legendary items, followed by Tier 4, Tier 3, Tier 2, Tier 1!
-      const tierNames = {
-        5: '★ Tier 5 — Legendary (Street Brawl / Hideout)',
-        4: 'Tier 4 — 6,400 Souls',
-        3: 'Tier 3 — 3,200 Souls',
-        2: 'Tier 2 — 1,600 Souls',
-        1: 'Tier 1 — 800 Souls'
-      };
-
-      const tierBlocks = tiers
-        .map(tierNum => {
-          const tierItems = shopItems.filter(i => i.tier === tierNum);
-          if (tierItems.length === 0) return '';
-          return `
-            <div class="catalog-tier-group ${tierNum === 5 ? 'tier-group-legendary' : ''}">
-              <div class="catalog-tier-header">
-                <span class="tier-header-title">${tierNames[tierNum]}</span>
-                <span class="tier-header-count">${tierItems.length} items</span>
-              </div>
-              <div class="catalog-items-grid">
-                ${tierItems.map(item => renderCatalogItemCard(item, countsByUid)).join('')}
-              </div>
-            </div>
-          `;
-        })
-        .join('');
-
-      htmlSections.push(`
-        <section class="catalog-shop-section shop-section-${shopKey}">
-          <div class="catalog-shop-banner">
-            <img src="${meta.icon}" alt="${meta.label}" class="banner-shop-icon" onerror="this.style.display='none'" />
-            <div>
-              <h3 class="banner-shop-title">${meta.label} Shop</h3>
-              <p class="banner-shop-desc">${meta.description}</p>
-            </div>
-          </div>
-          ${tierBlocks}
-        </section>
-      `);
-    }
-  }
-
-  // 2. Dedicated Cosmetic Items Section
-  const cosmeticItems = filtered.filter(i => i.section === 'cosmetic');
-  if (cosmeticItems.length > 0) {
-    htmlSections.push(`
-      <section class="catalog-shop-section shop-section-cosmetic" id="section-cosmetic">
-        <div class="catalog-shop-banner">
-          <img src="${SHOP_METADATA.cosmetic.icon}" alt="Cosmetic" class="banner-shop-icon" onerror="this.style.display='none'" />
-          <div>
-            <h3 class="banner-shop-title">Seasonal & Event Cosmetic Items</h3>
-            <p class="banner-shop-desc">Global active items that occupy the dedicated "E" keybind slot without using a regular inventory slot.</p>
-          </div>
-        </div>
-        <div class="catalog-tier-group">
-          <div class="catalog-items-grid">
-            ${cosmeticItems.map(item => renderCatalogItemCard(item, countsByUid)).join('')}
-          </div>
-        </div>
-      </section>
-    `);
-  }
-
-  // 3. Dedicated Unreleased & Cut Items Section (Broken down by Weapon, Spirit, Vitality)
-  const unreleasedItems = filtered.filter(i => i.section === 'unreleased');
-  if (unreleasedItems.length > 0) {
-    const subShops = ['weapon', 'spirit', 'vitality'];
-    const unreleasedBlocks = subShops
+    const shopColsHtml = activeShops
       .map(shopKey => {
-        const group = unreleasedItems.filter(i => i.shop === shopKey);
-        if (group.length === 0) return '';
+        const shopItems = mainItems.filter(i => i.shop === shopKey);
         const meta = SHOP_METADATA[shopKey];
+        const tiers = [5, 4, 3, 2, 1];
+
+        const tierNames = {
+          5: '★ Legendary (Street Brawl)',
+          4: 'Tier 4',
+          3: 'Tier 3',
+          2: 'Tier 2',
+          1: 'Tier 1'
+        };
+
+        const tierCosts = {
+          5: 'Hideout / Brawl',
+          4: '6,400 Souls',
+          3: '3,200 Souls',
+          2: '1,600 Souls',
+          1: '800 Souls'
+        };
+
+        const tierRowsHtml = tiers
+          .map(tierNum => {
+            const tierItems = shopItems.filter(i => i.tier === tierNum);
+            if (tierItems.length === 0) return '';
+            return `
+              <div class="tier-shelf-row tier-row-${tierNum}">
+                <div class="tier-shelf-header">
+                  <span class="tier-shelf-title">${tierNames[tierNum]}</span>
+                  <span class="tier-shelf-cost">${tierCosts[tierNum]}</span>
+                </div>
+                <div class="tier-shelf-tiles">
+                  ${tierItems.map(item => renderCatalogItemTile(item, countsByUid.get(item.uid) || 0)).join('')}
+                </div>
+              </div>
+            `;
+          })
+          .join('');
+
         return `
-          <div class="catalog-tier-group unreleased-tier-group">
-            <div class="catalog-tier-header">
-              <span class="tier-header-title">🧪 Unreleased & Cut ${meta.label} Items</span>
-              <span class="tier-header-count">${group.length} items</span>
+          <div class="shop-shelf-col shop-col-${shopKey}">
+            <div class="shop-shelf-header">
+              <img src="${meta.icon}" alt="${meta.label}" class="shelf-header-icon" onerror="this.style.display='none'" />
+              <div class="shelf-header-text">
+                <span class="shelf-title">${meta.label} Shop</span>
+                <span class="shelf-subtitle">${shopItems.length} items</span>
+              </div>
             </div>
-            <div class="catalog-items-grid">
-              ${group.map(item => renderCatalogItemCard(item, countsByUid)).join('')}
+            <div class="shop-shelf-body">
+              ${tierRowsHtml}
             </div>
           </div>
         `;
@@ -649,40 +691,109 @@ function renderCatalog() {
       .join('');
 
     htmlSections.push(`
-      <section class="catalog-shop-section shop-section-unreleased" id="section-unreleased">
-        <div class="catalog-shop-banner">
-          <div class="unreleased-banner-badge">🧪</div>
+      <div class="curiosity-shop-shelves">
+        ${shopColsHtml}
+      </div>
+    `);
+  }
+
+  // 2. Dedicated Cosmetic Items Section
+  const cosmeticItems = filtered.filter(i => i.section === 'cosmetic');
+  if (cosmeticItems.length > 0) {
+    htmlSections.push(`
+      <section class="special-shelf-section special-section-cosmetic" id="section-cosmetic">
+        <div class="special-shelf-header">
+          <img src="${SHOP_METADATA.cosmetic.icon}" alt="Cosmetic" class="shelf-header-icon" onerror="this.style.display='none'" />
           <div>
-            <h3 class="banner-shop-title">Unreleased & Cut Game-File Items</h3>
-            <p class="banner-shop-desc">Hidden experimental items found in Deadlock game files. Testable in the Hideout and Sandbox via <code>giveitem</code>.</p>
+            <h3 class="shelf-title">Seasonal &amp; Event Cosmetic Items</h3>
+            <p class="shelf-desc">Uses special "E" keybind slot without consuming an inventory slot.</p>
           </div>
         </div>
-        ${unreleasedBlocks}
+        <div class="tier-shelf-tiles special-tiles">
+          ${cosmeticItems.map(item => renderCatalogItemTile(item, countsByUid.get(item.uid) || 0)).join('')}
+        </div>
+      </section>
+    `);
+  }
+
+  // 3. Dedicated Unreleased & Cut Items Section
+  const unreleasedItems = filtered.filter(i => i.section === 'unreleased');
+  if (unreleasedItems.length > 0) {
+    const subShops = ['weapon', 'spirit', 'vitality'];
+    const unreleasedColsHtml = subShops
+      .map(shopKey => {
+        const group = unreleasedItems.filter(i => i.shop === shopKey);
+        if (group.length === 0) return '';
+        const meta = SHOP_METADATA[shopKey];
+        return `
+          <div class="unreleased-shelf-group">
+            <div class="tier-shelf-header">
+              <span class="tier-shelf-title">🧪 Cut &amp; Unreleased ${meta.label}</span>
+              <span class="tier-shelf-cost">${group.length} items</span>
+            </div>
+            <div class="tier-shelf-tiles">
+              ${group.map(item => renderCatalogItemTile(item, countsByUid.get(item.uid) || 0)).join('')}
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+
+    htmlSections.push(`
+      <section class="special-shelf-section special-section-unreleased" id="section-unreleased">
+        <div class="special-shelf-header">
+          <div class="unreleased-banner-badge">🧪</div>
+          <div>
+            <h3 class="shelf-title">Unreleased &amp; Cut Game-File Items</h3>
+            <p class="shelf-desc">Hidden experimental items found in Deadlock game files. Testable in the Hideout via <code>giveitem</code>.</p>
+          </div>
+        </div>
+        <div class="unreleased-shelves-grid">
+          ${unreleasedColsHtml}
+        </div>
       </section>
     `);
   }
 
   container.innerHTML = htmlSections.join('');
 
-  // Bind click events on catalog cards and their duplicate/remove buttons
-  container.querySelectorAll('.catalog-item-card').forEach(card => {
-    card.addEventListener('click', e => {
-      const actionBtn = e.target.closest('[data-card-action]');
-      const uid = card.getAttribute('data-uid');
-      const item = ITEMS.find(i => i.uid === uid);
-      if (!item) return;
+  // Bind click, right-click, and hover tooltip events on shop tiles
+  container.querySelectorAll('.shop-item-tile').forEach(tile => {
+    const uid = tile.getAttribute('data-uid');
+    const item = ITEMS.find(i => i.uid === uid);
+    if (!item) return;
 
-      if (actionBtn) {
-        e.stopPropagation();
-        const action = actionBtn.getAttribute('data-card-action');
-        if (action === 'remove-one') {
-          appState.removeLastByUid(uid);
-          return;
-        }
-      }
-
-      // Default card click or '+ Duplicate' click: add copy of item
+    // Left-click: Add 1 copy
+    tile.addEventListener('click', e => {
+      e.preventDefault();
       appState.addItem(item);
+      const count = (appState.getCountsByUid().get(item.uid) || 0);
+      showItemTooltip(item, count, e);
+    });
+
+    // Right-click: Remove 1 copy
+    tile.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      const currentCount = (appState.getCountsByUid().get(item.uid) || 0);
+      if (currentCount > 0) {
+        appState.removeLastByUid(item.uid);
+        const newCount = (appState.getCountsByUid().get(item.uid) || 0);
+        showItemTooltip(item, newCount, e);
+      }
+    });
+
+    // Hover tooltip
+    tile.addEventListener('mouseenter', e => {
+      const count = (appState.getCountsByUid().get(item.uid) || 0);
+      showItemTooltip(item, count, e);
+    });
+
+    tile.addEventListener('mousemove', e => {
+      updateItemTooltipPosition(e);
+    });
+
+    tile.addEventListener('mouseleave', () => {
+      hideItemTooltip();
     });
   });
 }

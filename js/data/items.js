@@ -8,6 +8,8 @@
  * - 79 Unreleased & Cut Items (Weapon, Vitality, Spirit)
  */
 
+import { ITEM_DESCRIPTIONS } from './descriptions.js';
+
 const CDN_BASE = 'https://cdn.deadlock.wiki';
 
 /**
@@ -80,6 +82,7 @@ const TIER_COSTS = {
 function makeItem(name, id, shop, tier, section = 'shop', customIconFile = null) {
   const fileName = customIconFile || `${name.replace(/ /g, '_').replace(/'/g, '%27')}.png`;
   const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const description = ITEM_DESCRIPTIONS[id] || `${name} (${shop} item)`;
   return {
     uid: `${section}_${id}_${slug}`,
     name,
@@ -89,6 +92,7 @@ function makeItem(name, id, shop, tier, section = 'shop', customIconFile = null)
     cost: TIER_COSTS[tier] ?? 0,
     section,      // 'shop' | 'legendary' | 'cosmetic' | 'unreleased'
     active: ACTIVE_ITEM_NAMES.has(name),
+    description,
     icon: `${CDN_BASE}/${fileName}`,
     wikiUrl: `https://deadlock.wiki/${encodeURIComponent(name.replace(/ /g, '_'))}`
   };
