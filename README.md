@@ -1,6 +1,8 @@
 # Deadlock Hideout & Legendary Item Command Generator
 
-A static web tool hosted on GitHub Pages for generating **Deadlock** (`giveitem`) console commands to bypass the 12-item inventory limit, stack duplicate copies of items, and equip Street Brawl **Legendary**, **Cosmetic**, and **Unreleased** items in the Hideout or Sandbox.
+🌐 **Live Website**: [https://nowitstime.github.io/dlockhideoutitems/](https://nowitstime.github.io/dlockhideoutitems/)
+
+A static web tool for generating **Deadlock** (`giveitem`) console commands to bypass the 12-item inventory limit, stack duplicate copies of items, and equip Street Brawl **Legendary**, **Cosmetic**, and **Unreleased** items in the Hideout or Sandbox.
 
 Item data and icons are sourced from [https://deadlock.wiki/Items](https://deadlock.wiki/Items).
 
@@ -24,12 +26,3 @@ Item data and icons are sourced from [https://deadlock.wiki/Items](https://deadl
     giveitem upgrade_runed_gauntlets; giveitem upgrade_infinite_rounds; giveitem upgrade_eldritch_shot; giveitem upgrade_mystical_piano; giveitem upgrade_prism_blast; giveitem upgrade_electric_slippers; giveitem upgrade_celestial_guidance; giveitem upgrade_icarus_wings
     ```
   - Automatically provides **Batch Copy (`Part 1`, `Part 2`, ...)** buttons and a **`.cfg` file download** (`exec hideout_items`) when your stack exceeds the Source 2 single-paste console character limit.
-
----
-
-## Deploying to GitHub Pages
-
-1. Push this repository to GitHub.
-2. Go to **Settings → Pages** in your GitHub repository.
-3. Under **Build and deployment**, set **Source** to **Deploy from a branch**.
-4. Select your main branch (`main` or `master`) and `/ (root)` folder, then click **Save**.
