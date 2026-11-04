@@ -3,6 +3,7 @@
  */
 
 import { ITEMS, PRESETS, SHOP_METADATA } from './data/items.js';
+import { ENHANCED_UPGRADES } from './data/descriptions.js';
 import { appState } from './state.js';
 import {
   generateCommandData,
@@ -508,6 +509,21 @@ function showItemTooltip(item, count, e) {
     : `<span class="tt-tag tt-tag-passive">PASSIVE</span>`;
 
   const fallbackIcon = getFallbackSvgDataUri(item.name, item.shop);
+  const enhancedBoost = ENHANCED_UPGRADES[item.id];
+  const isEnhancedActive = appState.options.forceEnhanced;
+
+  let enhancedHtml = '';
+  if (enhancedBoost) {
+    enhancedHtml = `
+      <div class="tt-enhanced-box ${isEnhancedActive ? 'is-active-enhanced' : ''}">
+        <div class="tt-enhanced-header">
+          <span class="tt-enhanced-badge">⚡ ENHANCED BOOST</span>
+          ${isEnhancedActive ? '<span class="tt-enhanced-status">ACTIVE</span>' : ''}
+        </div>
+        <div class="tt-enhanced-stats">${enhancedBoost}</div>
+      </div>
+    `;
+  }
 
   tooltip.innerHTML = `
     <div class="tt-header">
@@ -523,6 +539,7 @@ function showItemTooltip(item, count, e) {
     </div>
     <div class="tt-divider"></div>
     <div class="tt-desc">${item.description || 'Provides bonus stats and effects in Deadlock.'}</div>
+    ${enhancedHtml}
     <div class="tt-code"><code>giveitem ${item.id}</code></div>
     <div class="tt-footer">
       <span class="tt-hint"><strong>Left-Click:</strong> +1 copy ${count > 0 ? `(Purchased: ×${count})` : ''}</span>
@@ -876,7 +893,7 @@ export function initApp() {
         showToast('Add at least one item before downloading a .cfg file!');
         return;
       }
-      const cfgContent = generateCfgFileContent(appState.queue, true);
+      const cfgContent = generateCfgFileContent(appState.queue, appState.options);
       const blob = new Blob([cfgContent], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -918,8 +935,20 @@ export function initApp() {
   // Command Generator Options
   const cheatsToggle = document.getElementById('opt-include-cheats');
   if (cheatsToggle) {
+    cheatsToggle.checked = !!appState.options.includeCheats;
     cheatsToggle.addEventListener('change', e => {
       appState.setOption('includeCheats', e.target.checked);
+    });
+  }
+
+  const enhancedToggle = document.getElementById('opt-force-enhanced');
+  if (enhancedToggle) {
+    enhancedToggle.checked = !!appState.options.forceEnhanced;
+    enhancedToggle.addEventListener('change', e => {
+      appState.setOption('forceEnhanced', e.target.checked);
+      if (e.target.checked) {
+        showToast('⚡ Enhanced Items active: Prepending citadel_item_purchases_force_enhanced true');
+      }
     });
   }
 

@@ -29,9 +29,10 @@ class InventoryState {
     };
     this.options = {
       includeCheats: false,
-      format: 'semicolon', // 'semicolon' | 'newline' | 'bind'
+      forceEnhanced: false, // Forces citadel_item_purchases_force_enhanced true
+      format: 'semicolon',  // 'semicolon' | 'newline' | 'bind'
       bindKey: 'F6',
-      chunkLimit: 250      // Safe Source 2 console paste limit per batch
+      chunkLimit: 250       // Safe Source 2 console paste limit per batch
     };
     this.listeners = new Set();
     this._loadFromStorage();

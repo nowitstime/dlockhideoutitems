@@ -5,6 +5,7 @@
 export function generateCommandData(queue, options = {}) {
   const {
     includeCheats = false,
+    forceEnhanced = false,
     format = 'semicolon',
     bindKey = 'F6',
     chunkLimit = 250
@@ -21,7 +22,11 @@ export function generateCommandData(queue, options = {}) {
 
   const individualCommands = queue.map(({ item }) => `giveitem ${item.id}`);
 
-  if (includeCheats) {
+  // When forceEnhanced is enabled, it requires sv_cheats 1 and the console variable
+  if (forceEnhanced) {
+    individualCommands.unshift('citadel_item_purchases_force_enhanced true');
+    individualCommands.unshift('sv_cheats 1');
+  } else if (includeCheats) {
     individualCommands.unshift('sv_cheats 1');
   }
 
@@ -68,7 +73,11 @@ export function generateCommandData(queue, options = {}) {
 /**
  * Generates downloadable .cfg file content for Source 2 (exec hideout.cfg)
  */
-export function generateCfgFileContent(queue, includeCheats = true) {
+export function generateCfgFileContent(queue, options = {}) {
+  // Support both boolean includeCheats legacy call and options object
+  const includeCheats = typeof options === 'boolean' ? options : (options.includeCheats || options.forceEnhanced || true);
+  const forceEnhanced = typeof options === 'object' && options.forceEnhanced;
+
   const lines = [
     '// Deadlock Hideout & Legendary Item Stack',
     '// Place in: Steam/steamapps/common/Deadlock/game/citadel/cfg/hideout_items.cfg',
@@ -77,6 +86,9 @@ export function generateCfgFileContent(queue, includeCheats = true) {
   ];
   if (includeCheats) {
     lines.push('sv_cheats 1');
+  }
+  if (forceEnhanced) {
+    lines.push('citadel_item_purchases_force_enhanced true');
   }
   for (const { item } of queue) {
     lines.push(`giveitem ${item.id} // ${item.name}`);
